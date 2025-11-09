@@ -1,6 +1,3 @@
-https://platform.openai.com/ API_KEY:
-sk-proj-D6xVxh0YAUe1don33AHsffXFCg_GjhiW8pIJ8ESpjK4wt7GFb-64li5jf6EtfOKGwb2x4P6VdJT3BlbkFJdp4d8EN6kBExhEDlsZMUVpIA40I_hiftk3L1xKCZlK35ItisezbEfCDwA5BEOb-EyEk07DeD4A_K
-
 ----------------------------------------------------------------
 sudo docker run -d --name mongodb -p 27017:27017 -v /work/mongodb/data:/data/db -v /work/mongodb/log:/var/log/mongodb -e MONGO_INITDB_ROOT_USERNAME=admin -e MONGO_INITDB_ROOT_PASSWORD='Z!cxz098-lz' --restart=always mongo:latest   --logpath /var/log/mongodb/mongod.log
 
