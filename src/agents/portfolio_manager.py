@@ -97,80 +97,160 @@ def generate_trading_decision(
 ) -> PortfolioManagerOutput:
     """Attempts to get a decision from the LLM with retry logic"""
     # Create the prompt template
+
+    # template = ChatPromptTemplate.from_messages(
+    #     [
+    #         (
+    #             "system",
+    #             """You are a portfolio manager making final trading decisions based on multiple tickers.
+
+    #           Trading Rules:
+    #           - For long positions:
+    #             * Only buy if you have available cash
+    #             * Only sell if you currently hold long shares of that ticker
+    #             * Sell quantity must be ≤ current long position shares
+    #             * Buy quantity must be ≤ max_shares for that ticker
+              
+    #           - For short positions:
+    #             * Only short if you have available margin (position value × margin requirement)
+    #             * Only cover if you currently have short shares of that ticker
+    #             * Cover quantity must be ≤ current short position shares
+    #             * Short quantity must respect margin requirements
+              
+    #           - The max_shares values are pre-calculated to respect position limits
+    #           - Consider both long and short opportunities based on signals
+    #           - Maintain appropriate risk management with both long and short exposure
+
+    #           Available Actions:
+    #           - "buy": Open or add to long position
+    #           - "sell": Close or reduce long position
+    #           - "short": Open or add to short position
+    #           - "cover": Close or reduce short position
+    #           - "hold": No action
+
+    #           Inputs:
+    #           - signals_by_ticker: dictionary of ticker → signals
+    #           - max_shares: maximum shares allowed per ticker
+    #           - portfolio_cash: current cash in portfolio
+    #           - portfolio_positions: current positions (both long and short)
+    #           - current_prices: current prices for each ticker
+    #           - margin_requirement: current margin requirement for short positions (e.g., 0.5 means 50%)
+    #           - total_margin_used: total margin currently in use
+    #           """,
+    #         ),
+    #         (
+    #             "human",
+    #             """Based on the team's analysis, make your trading decisions for each ticker.
+
+    #           Here are the signals by ticker:
+    #           {signals_by_ticker}
+
+    #           Current Prices:
+    #           {current_prices}
+
+    #           Maximum Shares Allowed For Purchases:
+    #           {max_shares}
+
+    #           Portfolio Cash: {portfolio_cash}
+    #           Current Positions: {portfolio_positions}
+    #           Current Margin Requirement: {margin_requirement}
+    #           Total Margin Used: {total_margin_used}
+
+    #           Output strictly in JSON with the following structure:
+    #           {{
+    #             "decisions": {{
+    #               "TICKER1": {{
+    #                 "action": "buy/sell/short/cover/hold",
+    #                 "quantity": integer,
+    #                 "confidence": float between 0 and 100,
+    #                 "reasoning": "string"
+    #               }},
+    #               "TICKER2": {{
+    #                 ...
+    #               }},
+    #               ...
+    #             }}
+    #           }}
+    #           """,
+    #         ),
+    #     ]
+    # )
+
     template = ChatPromptTemplate.from_messages(
         [
             (
                 "system",
-                """You are a portfolio manager making final trading decisions based on multiple tickers.
+                """您是一名投资组合经理，基于多个股票代码做出最终交易决策。
+                重要提示：请用中文回复，但交易动作保持英文。
 
-              Trading Rules:
-              - For long positions:
-                * Only buy if you have available cash
-                * Only sell if you currently hold long shares of that ticker
-                * Sell quantity must be ≤ current long position shares
-                * Buy quantity must be ≤ max_shares for that ticker
-              
-              - For short positions:
-                * Only short if you have available margin (position value × margin requirement)
-                * Only cover if you currently have short shares of that ticker
-                * Cover quantity must be ≤ current short position shares
-                * Short quantity must respect margin requirements
-              
-              - The max_shares values are pre-calculated to respect position limits
-              - Consider both long and short opportunities based on signals
-              - Maintain appropriate risk management with both long and short exposure
+                交易规则：
+                - 多头仓位：
+                  * 只有在有可用现金时才能买入
+                  * 只有在当前持有该股票多头股份时才能卖出
+                  * 卖出数量必须 ≤ 当前多头仓位股数
+                  * 买入数量必须 ≤ 该股票的最大股数限制
+                
+                - 空头仓位：
+                  * 只有在有可用保证金时才能做空（仓位价值 x 保证金要求）
+                  * 只有在当前持有该股票空头股份时才能平仓
+                  * 平仓数量必须 ≤ 当前空头仓位股数
+                  * 做空数量必须符合保证金要求
+                
+                - max_shares 值已预先计算以符合仓位限制
+                - 根据信号考虑多空双向机会
+                - 在多空仓位中保持适当的风险管理
 
-              Available Actions:
-              - "buy": Open or add to long position
-              - "sell": Close or reduce long position
-              - "short": Open or add to short position
-              - "cover": Close or reduce short position
-              - "hold": No action
+                可用交易动作（保持英文）：
+                - "buy": 开仓或增加多头仓位
+                - "sell": 平仓或减少多头仓位
+                - "short": 开仓或增加空头仓位
+                - "cover": 平仓或减少空头仓位
+                - "hold": 不进行任何操作
 
-              Inputs:
-              - signals_by_ticker: dictionary of ticker → signals
-              - max_shares: maximum shares allowed per ticker
-              - portfolio_cash: current cash in portfolio
-              - portfolio_positions: current positions (both long and short)
-              - current_prices: current prices for each ticker
-              - margin_requirement: current margin requirement for short positions (e.g., 0.5 means 50%)
-              - total_margin_used: total margin currently in use
-              """,
+                输入参数：
+                - signals_by_ticker: 股票代码 → 信号的字典
+                - max_shares: 每个股票允许的最大股数
+                - portfolio_cash: 投资组合中的当前现金
+                - portfolio_positions: 当前仓位（多头和空头）
+                - current_prices: 每个股票的当前价格
+                - margin_requirement: 空头仓位的当前保证金要求(例如0.5表示50%)
+                - total_margin_used: 当前使用的总保证金
+                """,
             ),
             (
                 "human",
-                """Based on the team's analysis, make your trading decisions for each ticker.
+                """基于团队分析，请为每个股票代码做出交易决策。
 
-              Here are the signals by ticker:
-              {signals_by_ticker}
+                各股票信号：
+                {signals_by_ticker}
 
-              Current Prices:
-              {current_prices}
+                当前价格：
+                {current_prices}
 
-              Maximum Shares Allowed For Purchases:
-              {max_shares}
+                购买允许的最大股数：
+                {max_shares}
 
-              Portfolio Cash: {portfolio_cash}
-              Current Positions: {portfolio_positions}
-              Current Margin Requirement: {margin_requirement}
-              Total Margin Used: {total_margin_used}
+                投资组合现金：{portfolio_cash}
+                当前仓位：{portfolio_positions}
+                当前保证金要求：{margin_requirement}
+                已使用总保证金：{total_margin_used}
 
-              Output strictly in JSON with the following structure:
-              {{
-                "decisions": {{
-                  "TICKER1": {{
-                    "action": "buy/sell/short/cover/hold",
-                    "quantity": integer,
-                    "confidence": float between 0 and 100,
-                    "reasoning": "string"
-                  }},
-                  "TICKER2": {{
+                请严格按照以下JSON格式输出(reasoning用中文,action保持英文):
+                {{
+                  "decisions": {{
+                    "TICKER1": {{
+                      "action": "buy/sell/short/cover/hold",
+                      "quantity": integer,
+                      "confidence": float between 0 and 100,
+                      "reasoning": "中文推理说明"
+                    }},
+                    "TICKER2": {{
+                      ...
+                    }},
                     ...
-                  }},
-                  ...
+                  }}
                 }}
-              }}
-              """,
+                """,
             ),
         ]
     )

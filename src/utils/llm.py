@@ -48,17 +48,24 @@ def call_llm(
     for attempt in range(max_retries):
         try:
             # Call the LLM
+            # print(f"Calling LLM: {model_name} ({model_provider}) with prompt: {prompt}")
             result = llm.invoke(prompt)
+            # print(f"LLM call result: {result}")
 
             # For non-JSON support models, we need to extract and parse the JSON manually
             if model_info and not model_info.has_json_mode():
                 parsed_result = extract_json_from_response(result.content)
                 if parsed_result:
                     return pydantic_model(**parsed_result)
+                parsed_result = json.loads(result.content)  # Ensure the content is valid JSON
+                print(f"result.content: {result.content}")
+                if parsed_result:
+                    return pydantic_model(**parsed_result)
             else:
                 return result
 
         except Exception as e:
+            print(f"Error in LLM call: {e}")
             if agent_name:
                 progress.update_status(agent_name, None, f"Error - retry {attempt + 1}/{max_retries}")
 

@@ -37,19 +37,28 @@ def ben_graham_agent(state: AgentState):
 
         progress.update_status("ben_graham_agent", ticker, "Gathering financial line items")
         financial_line_items = search_line_items(ticker, ["earnings_per_share", "revenue", "net_income", "book_value_per_share", "total_assets", "total_liabilities", "current_assets", "current_liabilities", "dividends_and_other_cash_distributions", "outstanding_shares"], end_date, period="annual", limit=10)
+        # progress.update_status("ben_graham_agent", ticker, f"Financial line items fetched: {len(financial_line_items)} items")
+        print(f"Financial line items for {ticker}: {financial_line_items}")
 
         progress.update_status("ben_graham_agent", ticker, "Getting market cap")
         market_cap = get_market_cap(ticker, end_date)
+        print(f"Market cap for {ticker}: {market_cap}")
 
         # Perform sub-analyses
         progress.update_status("ben_graham_agent", ticker, "Analyzing earnings stability")
         earnings_analysis = analyze_earnings_stability(metrics, financial_line_items)
+        print(f"Earnings analysis score for {ticker}: {earnings_analysis["score"]}")
+        print(f"Earnings analysis details for {ticker}: {earnings_analysis['details']}")
 
         progress.update_status("ben_graham_agent", ticker, "Analyzing financial strength")
         strength_analysis = analyze_financial_strength(financial_line_items)
+        print(f"Financial strength analysis score for {ticker}: {strength_analysis["score"]}")
+        print(f"Financial strength analysis details for {ticker}: {strength_analysis['details']}")
 
         progress.update_status("ben_graham_agent", ticker, "Analyzing Graham valuation")
         valuation_analysis = analyze_valuation_graham(financial_line_items, market_cap)
+        print(f"Valuation analysis score for {ticker}: {valuation_analysis["score"]}")
+        print(f"Valuation analysis details for {ticker}: {valuation_analysis['details']}")
 
         # Aggregate scoring
         total_score = earnings_analysis["score"] + strength_analysis["score"] + valuation_analysis["score"]
@@ -72,7 +81,11 @@ def ben_graham_agent(state: AgentState):
             model_name=state["metadata"]["model_name"],
             model_provider=state["metadata"]["model_provider"],
         )
+        print(f"analysis_data for {ticker}: {analysis_data[ticker]}")
+        print(f"Graham output for {ticker}: {graham_output}")
 
+        # output graham_output.reasoning
+        # progress.update_status("ben_graham_agent", ticker, f"Analysis complete: {graham_output.reasoning}")
         graham_analysis[ticker] = {"signal": graham_output.signal, "confidence": graham_output.confidence, "reasoning": graham_output.reasoning}
 
         progress.update_status("ben_graham_agent", ticker, "Done")
@@ -288,49 +301,94 @@ def generate_graham_output(
     - Value emphasis, margin of safety, net-nets, conservative balance sheet, stable earnings.
     - Return the result in a JSON structure: { signal, confidence, reasoning }.
     """
-
     template = ChatPromptTemplate.from_messages(
         [
             (
                 "system",
-                """You are a Benjamin Graham AI agent, making investment decisions using his principles:
-            1. Insist on a margin of safety by buying below intrinsic value (e.g., using Graham Number, net-net).
-            2. Emphasize the company's financial strength (low leverage, ample current assets).
-            3. Prefer stable earnings over multiple years.
-            4. Consider dividend record for extra safety.
-            5. Avoid speculative or high-growth assumptions; focus on proven metrics.
-            
-            When providing your reasoning, be thorough and specific by:
-            1. Explaining the key valuation metrics that influenced your decision the most (Graham Number, NCAV, P/E, etc.)
-            2. Highlighting the specific financial strength indicators (current ratio, debt levels, etc.)
-            3. Referencing the stability or instability of earnings over time
-            4. Providing quantitative evidence with precise numbers
-            5. Comparing current metrics to Graham's specific thresholds (e.g., "Current ratio of 2.5 exceeds Graham's minimum of 2.0")
-            6. Using Benjamin Graham's conservative, analytical voice and style in your explanation
-            
-            For example, if bullish: "The stock trades at a 35% discount to net current asset value, providing an ample margin of safety. The current ratio of 2.5 and debt-to-equity of 0.3 indicate strong financial position..."
-            For example, if bearish: "Despite consistent earnings, the current price of $50 exceeds our calculated Graham Number of $35, offering no margin of safety. Additionally, the current ratio of only 1.2 falls below Graham's preferred 2.0 threshold..."
-                        
-            Return a rational recommendation: bullish, bearish, or neutral, with a confidence level (0-100) and thorough reasoning.
-            """,
+                """You are a Benjamin Graham AI agent, making investment decisions using his principles. 
+                IMPORTANT: Respond in Chinese (中文).
+                
+                你是一个本杰明·格雷厄姆AI投资顾问,使用他的投资原则进行决策:
+                1. 坚持安全边际,以低于内在价值的价格买入（例如,使用格雷厄姆数字、净营运资本）
+                2. 强调公司的财务实力（低杠杆、充足的流动资产）
+                3. 偏好多年稳定的盈利
+                4. 考虑分红记录以增加安全性
+                5. 避免投机或高增长假设；专注于已验证的指标
+                
+                在提供推理时,请详细和具体：
+                1. 解释影响你决策最重要的关键估值指标(格雷厄姆数字、NCAV、P/E等)
+                2. 突出具体的财务实力指标（流动比率、债务水平等）
+                3. 参考收益随时间的稳定性或不稳定性
+                4. 提供精确数字的定量证据
+                5. 将当前指标与格雷厄姆的具体阈值进行比较
+                6. 在解释中使用本杰明·格雷厄姆保守、分析性的语调和风格
+                
+                例如,如果看涨:“股票的交易价格比流动资产净值低35%,提供了充足的安全边际。流动比率为2.5,债务权益比为0.3,表明财务状况良好……”
+                例如,如果看跌:“尽管盈利持续,但目前50美元的价格超过了我们计算出的格雷厄姆数35美元,没有安全边际。此外,目前只有1.2的比率低于格雷厄姆首选的2.0阈值……”
+
+                返回理性建议：看涨、看跌或中性,并提供置信度(0-100)和详细推理。
+                所有回复必须使用中文。
+                """,
             ),
             (
                 "human",
-                """Based on the following analysis, create a Graham-style investment signal:
+                """基于以下分析,创建格雷厄姆风格的投资信号：
 
-            Analysis Data for {ticker}:
+            股票代码 {ticker} 的分析数据：
             {analysis_data}
 
-            Return JSON exactly in this format:
+            请严格按照以下JSON格式返回:
             {{
-              "signal": "bullish" or "bearish" or "neutral",
-              "confidence": float (0-100),
-              "reasoning": "string"
+            "signal": "bullish" 或 "bearish" 或 "neutral",
+            "confidence": float (0-100),
+            "reasoning": "详细的中文推理说明"
             }}
             """,
             ),
         ]
     )
+    # template = ChatPromptTemplate.from_messages(
+    #     [
+    #         (
+    #             "system",
+    #             """You are a Benjamin Graham AI agent, making investment decisions using his principles:
+    #         1. Insist on a margin of safety by buying below intrinsic value (e.g., using Graham Number, net-net).
+    #         2. Emphasize the company's financial strength (low leverage, ample current assets).
+    #         3. Prefer stable earnings over multiple years.
+    #         4. Consider dividend record for extra safety.
+    #         5. Avoid speculative or high-growth assumptions; focus on proven metrics.
+            
+    #         When providing your reasoning, be thorough and specific by:
+    #         1. Explaining the key valuation metrics that influenced your decision the most (Graham Number, NCAV, P/E, etc.)
+    #         2. Highlighting the specific financial strength indicators (current ratio, debt levels, etc.)
+    #         3. Referencing the stability or instability of earnings over time
+    #         4. Providing quantitative evidence with precise numbers
+    #         5. Comparing current metrics to Graham's specific thresholds (e.g., "Current ratio of 2.5 exceeds Graham's minimum of 2.0")
+    #         6. Using Benjamin Graham's conservative, analytical voice and style in your explanation
+            
+    #         For example, if bullish: "The stock trades at a 35% discount to net current asset value, providing an ample margin of safety. The current ratio of 2.5 and debt-to-equity of 0.3 indicate strong financial position..."
+    #         For example, if bearish: "Despite consistent earnings, the current price of $50 exceeds our calculated Graham Number of $35, offering no margin of safety. Additionally, the current ratio of only 1.2 falls below Graham's preferred 2.0 threshold..."
+                        
+    #         Return a rational recommendation: bullish, bearish, or neutral, with a confidence level (0-100) and thorough reasoning.
+    #         """,
+    #         ),
+    #         (
+    #             "human",
+    #             """Based on the following analysis, create a Graham-style investment signal:
+
+    #         Analysis Data for {ticker}:
+    #         {analysis_data}
+
+    #         Return JSON exactly in this format:
+    #         {{
+    #           "signal": "bullish" or "bearish" or "neutral",
+    #           "confidence": float (0-100),
+    #           "reasoning": "string"
+    #         }}
+    #         """,
+    #         ),
+    #     ]
+    # )
 
     prompt = template.invoke({"analysis_data": json.dumps(analysis_data, indent=2), "ticker": ticker})
 

@@ -178,6 +178,7 @@ You can optionally specify the start and end dates to make decisions for a speci
 ```bash
 # With Poetry:
 poetry run python src/main.py --ticker AAPL,MSFT,NVDA --start-date 2024-01-01 --end-date 2024-03-01 
+poetry run python src/main.py --tickers 601139 --start-date 2024-01-01 --end-date 2025-05-23
 
 # With Docker (on Linux/Mac):
 ./run.sh --ticker AAPL,MSFT,NVDA --start-date 2024-01-01 --end-date 2024-03-01 main
@@ -191,6 +192,7 @@ run.bat --ticker AAPL,MSFT,NVDA --start-date 2024-01-01 --end-date 2024-03-01 ma
 #### With Poetry
 ```bash
 poetry run python src/backtester.py --ticker AAPL,MSFT,NVDA
+poetry run python src/backtester.py --tickers 601139 --start-date 2024-01-01 --end-date 2025-05-23
 ```
 
 #### With Docker
